@@ -1,0 +1,6 @@
+wiki.example.com {
+	@mcp path /mcp /api/* /openapi.json /.well-known/openapi.json /.well-known/oauth-protected-resource* /.well-known/oauth-authorization-server* /.well-known/openid-configuration
+	reverse_proxy @mcp 192.168.1.10:3002
+
+	reverse_proxy 192.168.1.10:3001
+}
