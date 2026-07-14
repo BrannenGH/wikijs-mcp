@@ -1,89 +1,16 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-wikijs}
-      POSTGRES_USER: ${POSTGRES_USER:-wikijs}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-    volumes:
-      - /media/data/wikijs/postgres:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  wikijs:
-    image: ghcr.io/requarks/wiki:2
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DB_TYPE: postgres
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: ${POSTGRES_USER:-wikijs}
-      DB_PASS: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      DB_NAME: ${POSTGRES_DB:-wikijs}
-    volumes:
-      - /media/data/wikijs/uploads:/wiki/data/uploads
-      - /media/data/wiki:/media/data/wiki:ro
-    expose:
-      - "3000"
-
-  oauth2-proxy:
-    image: ${OAUTH2_PROXY_IMAGE:-quay.io/oauth2-proxy/oauth2-proxy:latest}
-    restart: unless-stopped
-    depends_on:
-      - wikijs
-    command:
-      - --http-address=0.0.0.0:4180
-      - --reverse-proxy=true
-      - --provider=keycloak-oidc
-      - --oidc-issuer-url=${KEYCLOAK_ISSUER_URL:?set KEYCLOAK_ISSUER_URL in .env}
-      - --insecure-oidc-allow-unverified-email=true
-      - --client-id=${KEYCLOAK_UI_CLIENT_ID:-wikijs-ui}
-      - --client-secret=${KEYCLOAK_UI_CLIENT_SECRET:?set KEYCLOAK_UI_CLIENT_SECRET in .env}
-      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET:?set OAUTH2_PROXY_COOKIE_SECRET in .env}
-      - --cookie-secure=true
-      - --cookie-samesite=lax
-      - --email-domain=*
-      - --scope=openid email profile
-      - --set-xauthrequest=true
-      - --upstream=http://wikijs:3000
-      - --redirect-url=${WIKI_PUBLIC_URL:?set WIKI_PUBLIC_URL in .env}/oauth2/callback
-    ports:
-      - "${WIKI_BIND_ADDR:-127.0.0.1}:${WIKI_UI_PORT:-3001}:4180"
-
   wikijs-mcp:
     build:
-      context: ./mcp-proxy
+      context: .
     container_name: wikijs-mcp
     restart: unless-stopped
-    depends_on:
-      - wikijs
-    environment:
-      PORT: 3000
-      WIKIJS_GRAPHQL_URL: http://wikijs:3000/graphql
-      WIKIJS_API_TOKEN: ${WIKIJS_API_TOKEN:-}
-      WIKI_PUBLIC_URL: ${WIKI_PUBLIC_URL:?set WIKI_PUBLIC_URL in .env}
-    expose:
-      - "3000"
-
-  wikijs-mcp-auth:
-    image: ghcr.io/brannengh/jwt-proxy:latest
-    container_name: wikijs-mcp-auth
-    restart: unless-stopped
-    depends_on:
-      - wikijs-mcp
-    environment:
-      OIDC_ISSUER_URL: ${KEYCLOAK_ISSUER_URL:?set KEYCLOAK_ISSUER_URL in .env}
-      MCP_UPSTREAM_URL: http://wikijs-mcp:3000
-      MCP_UPSTREAM_MCP_PATH: /mcp
-      MCP_PUBLIC_URL: ${WIKI_PUBLIC_URL:?set WIKI_PUBLIC_URL in .env}
-      MCP_RESOURCE_URL: ${MCP_RESOURCE_URL:-}
-      JWT_AUDIENCE: ${KEYCLOAK_MCP_AUDIENCE:-}
     ports:
-      - "${MCP_BIND_ADDR:-127.0.0.1}:${MCP_PORT:-3002}:8080"
+      - "${WIKIJS_MCP_BIND_ADDR:-0.0.0.0}:${WIKIJS_MCP_PORT:-5094}:8000"
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8000
+      MCP_TRANSPORT: streamable-http
+      MCP_SCRIPT_TIMEOUT_SECONDS: 90
+    env_file:
+      - path: ./wikijs.env
+        required: false
