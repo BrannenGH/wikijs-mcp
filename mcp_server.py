@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -14,12 +14,10 @@ from starlette.responses import JSONResponse
 BASE_DIR = Path(__file__).resolve().parent
 SCRIPT = BASE_DIR / "scripts" / "wikijs.py"
 DEFAULT_TIMEOUT_SECONDS = int(os.environ.get("MCP_SCRIPT_TIMEOUT_SECONDS", "90"))
+MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
+MCP_PORT = int(os.environ.get("MCP_PORT", "8000"))
 
-mcp = FastMCP(
-    "wikijs",
-    host=os.environ.get("MCP_HOST", "0.0.0.0"),
-    port=int(os.environ.get("MCP_PORT", "8000")),
-)
+mcp = MCPServer("wikijs")
 
 
 @mcp.custom_route("/healthz", methods=["GET"])
@@ -373,4 +371,8 @@ def wikijs_graphql(
 
 
 if __name__ == "__main__":
-    mcp.run(transport=os.environ.get("MCP_TRANSPORT", "streamable-http"))
+    transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
+    if transport in ("sse", "streamable-http"):
+        mcp.run(transport=transport, host=MCP_HOST, port=MCP_PORT)
+    else:
+        mcp.run(transport=transport)
